@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Dependencies
+
+- Bump Sample React Native from v0.67.4 to v0.70.1 ([#2459](https://github.com/getsentry/sentry-react-native/pull/2459))
+  - [changelog](https://github.com/facebook/react-native/blob/main/CHANGELOG.md#v0701)
+  - [diff](https://github.com/facebook/react-native/compare/v0.67.4...v0.70.1)
+
 ## 4.5.0
 
 ### Features
