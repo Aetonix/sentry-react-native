@@ -1,10 +1,14 @@
-import { IdleTransaction, Span, Transaction } from '@sentry/tracing';
-import { TransactionContext } from '@sentry/types';
-import { timestampInSeconds } from '@sentry/utils';
+import type { Transaction } from '@sentry/core';
+import { type IdleTransaction, type Span as SpanClass, setMeasurement, spanToJSON } from '@sentry/core';
+import type { Span, Transaction as TransactionType, TransactionContext, TransactionSource } from '@sentry/types';
+import { logger, timestampInSeconds } from '@sentry/utils';
 
-export const getBlankTransactionContext = (
-  name: string
-): TransactionContext => {
+import { RN_GLOBAL_OBJ } from '../utils/worldwide';
+
+export const defaultTransactionSource: TransactionSource = 'component';
+export const customTransactionSource: TransactionSource = 'custom';
+
+export const getBlankTransactionContext = (name: string): TransactionContext => {
   return {
     name: 'Route Change',
     op: 'navigation',
@@ -12,6 +16,9 @@ export const getBlankTransactionContext = (
       'routing.instrumentation': name,
     },
     data: {},
+    metadata: {
+      source: defaultTransactionSource,
+    },
   };
 };
 
@@ -24,24 +31,15 @@ export const MARGIN_OF_ERROR_SECONDS = 0.05;
 const timeOriginMilliseconds = Date.now();
 
 /**
- * Converts from seconds to milliseconds
- * @param time time in seconds
- */
-function secToMs(time: number): number {
-  return time * 1000;
-}
-
-/**
  *
  */
 export function adjustTransactionDuration(
-  maxDuration: number, // in seconds
+  maxDurationMs: number,
   transaction: IdleTransaction,
-  endTimestamp: number
+  endTimestamp: number,
 ): void {
   const diff = endTimestamp - transaction.startTimestamp;
-  const isOutdatedTransaction =
-    endTimestamp && (diff > secToMs(maxDuration) || diff < 0);
+  const isOutdatedTransaction = endTimestamp && (diff > maxDurationMs || diff < 0);
   if (isOutdatedTransaction) {
     transaction.setStatus('deadline_exceeded');
     transaction.setTag('maxTransactionDurationExceeded', 'true');
@@ -60,13 +58,13 @@ export function getTimeOriginMilliseconds(): number {
  */
 export function instrumentChildSpanFinish(
   transaction: Transaction,
-  callback: (span: Span, endTimestamp?: number) => void
+  callback: (span: SpanClass, endTimestamp?: number) => void,
 ): void {
   if (transaction.spanRecorder) {
     // eslint-disable-next-line @typescript-eslint/unbound-method
     const originalAdd = transaction.spanRecorder.add;
 
-    transaction.spanRecorder.add = (span: Span): void => {
+    transaction.spanRecorder.add = (span: SpanClass): void => {
       originalAdd.apply(transaction.spanRecorder, [span]);
 
       // eslint-disable-next-line @typescript-eslint/unbound-method
@@ -74,6 +72,15 @@ export function instrumentChildSpanFinish(
 
       span.finish = (endTimestamp?: number) => {
         originalSpanFinish.apply(span, [endTimestamp]);
+
+        callback(span, endTimestamp);
+      };
+
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const originalSpanEnd = span.end;
+
+      span.end = (endTimestamp?: number) => {
+        originalSpanEnd.apply(span, [endTimestamp]);
 
         callback(span, endTimestamp);
       };
@@ -86,4 +93,56 @@ export function instrumentChildSpanFinish(
  */
 export function isNearToNow(timestamp: number): boolean {
   return Math.abs(timestampInSeconds() - timestamp) <= MARGIN_OF_ERROR_SECONDS;
+}
+
+/**
+ * Sets the duration of the span as a measurement.
+ * Uses `setMeasurement` function from @sentry/core.
+ */
+export function setSpanDurationAsMeasurement(name: string, span: Span): void {
+  const { timestamp: spanEnd, start_timestamp: spanStart } = spanToJSON(span);
+  if (!spanEnd || !spanStart) {
+    return;
+  }
+
+  setMeasurement(name, (spanEnd - spanStart) * 1000, 'millisecond');
+}
+
+/**
+ * Sets the duration of the span as a measurement.
+ * Uses `setMeasurement` function from @sentry/core.
+ */
+export function setSpanDurationAsMeasurementOnTransaction(
+  transaction: TransactionType,
+  name: string,
+  span: Span,
+): void {
+  const { timestamp: spanEnd, start_timestamp: spanStart } = spanToJSON(span);
+  if (!spanEnd || !spanStart) {
+    return;
+  }
+
+  transaction.setMeasurement(name, (spanEnd - spanStart) * 1000, 'millisecond');
+}
+
+/**
+ * Returns unix timestamp in ms of the bundle start time.
+ *
+ * If not available, returns undefined.
+ */
+export function getBundleStartTimestampMs(): number | undefined {
+  const bundleStartTime = RN_GLOBAL_OBJ.__BUNDLE_START_TIME__;
+  if (!bundleStartTime) {
+    logger.warn('Missing the bundle start time on the global object.');
+    return undefined;
+  }
+
+  if (!RN_GLOBAL_OBJ.nativePerformanceNow) {
+    // bundleStartTime is Date.now() in milliseconds
+    return bundleStartTime;
+  }
+
+  // nativePerformanceNow() is monotonic clock like performance.now()
+  const approxStartingTimeOrigin = Date.now() - RN_GLOBAL_OBJ.nativePerformanceNow();
+  return approxStartingTimeOrigin + bundleStartTime;
 }

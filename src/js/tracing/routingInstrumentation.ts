@@ -1,15 +1,22 @@
-import { Hub } from '@sentry/hub';
-import { Transaction, TransactionContext } from '@sentry/types';
+import type { Hub } from '@sentry/core';
+import type { Transaction, TransactionContext } from '@sentry/types';
 
-import { BeforeNavigate } from './types';
+import type { BeforeNavigate } from './types';
 
-export type TransactionCreator = (
-  context: TransactionContext
-) => Transaction | undefined;
+export type TransactionCreator = (context: TransactionContext) => Transaction | undefined;
 
 export type OnConfirmRoute = (context: TransactionContext) => void;
 
+/**
+ * @deprecated Use `Integration` from `@sentry/types` and `startIdleTransaction` from `@sentry/core` instead.
+ *
+ * Or use `startIdleNavigationSpan` from `@sentry/react-native@^6`.
+ */
 export interface RoutingInstrumentationInstance {
+  /**
+   * Name of the routing instrumentation
+   */
+  readonly name: string;
   /**
    * Registers a listener that's called on every route change with a `TransactionContext`.
    *
@@ -22,7 +29,7 @@ export interface RoutingInstrumentationInstance {
   registerRoutingInstrumentation(
     listener: TransactionCreator,
     beforeNavigate: BeforeNavigate,
-    onConfirmRoute: OnConfirmRoute
+    onConfirmRoute: OnConfirmRoute,
   ): void;
   /**
    * To be called when the route changes, BEFORE the new route mounts.
@@ -34,11 +41,14 @@ export interface RoutingInstrumentationInstance {
 }
 
 /**
- * Base Routing Instrumentation. Can be used by users to manually instrument custom routers.
- * Pass this to the tracing integration, and call `onRouteWillChange` every time before a route changes.
+ * @deprecated Use `Integration` from `@sentry/types` and `startIdleTransaction` from `@sentry/core` instead.
+ *
+ * Or use `startIdleNavigationSpan` from `@sentry/react-native@^6`.
  */
 export class RoutingInstrumentation implements RoutingInstrumentationInstance {
   public static instrumentationName: string = 'base-routing-instrumentation';
+
+  public readonly name: string = RoutingInstrumentation.instrumentationName;
 
   protected _getCurrentHub?: () => Hub;
   protected _beforeNavigate?: BeforeNavigate;
@@ -49,7 +59,7 @@ export class RoutingInstrumentation implements RoutingInstrumentationInstance {
   public registerRoutingInstrumentation(
     listener: TransactionCreator,
     beforeNavigate: BeforeNavigate,
-    onConfirmRoute: OnConfirmRoute
+    onConfirmRoute: OnConfirmRoute,
   ): void {
     this._tracingListener = listener;
     this._beforeNavigate = beforeNavigate;
@@ -57,9 +67,7 @@ export class RoutingInstrumentation implements RoutingInstrumentationInstance {
   }
 
   /** @inheritdoc */
-  public onRouteWillChange(
-    context: TransactionContext
-  ): Transaction | undefined {
+  public onRouteWillChange(context: TransactionContext): Transaction | undefined {
     const transaction = this._tracingListener?.(context);
 
     if (transaction) {
@@ -75,9 +83,7 @@ export class RoutingInstrumentation implements RoutingInstrumentationInstance {
  */
 export class InternalRoutingInstrumentation extends RoutingInstrumentation {
   /** @inheritdoc */
-  public onRouteWillChange(
-    context: TransactionContext
-  ): Transaction | undefined {
+  public onRouteWillChange(context: TransactionContext): Transaction | undefined {
     return this._tracingListener?.(context);
   }
 }
