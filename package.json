@@ -75,7 +75,8 @@
     "@sentry/integrations": "7.119.0",
     "@sentry/react": "7.119.0",
     "@sentry/types": "7.119.0",
-    "@sentry/utils": "7.119.0"
+    "@sentry/utils": "7.119.0",
+		"promise": "^8.0.1"
   },
   "devDependencies": {
     "@babel/core": "^7.23.5",
