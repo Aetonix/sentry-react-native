@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Dependencies
+
+- Bump CLI from v2.36.1 to v2.37.0 ([#4](https://github.com/Aetonix/sentry-react-native/pull/4))
+  - [changelog](https://github.com/getsentry/sentry-cli/blob/master/CHANGELOG.md#2370)
+  - [diff](https://github.com/getsentry/sentry-cli/compare/2.36.1...2.37.0)
+
 ## 5.33.0
 
 ### Features
